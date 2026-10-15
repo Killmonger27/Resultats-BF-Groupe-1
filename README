@@ -1,0 +1,76 @@
+# Vagrant Lab : infra haute disponibilité
+
+Lab multi-VM reproductible avec Vagrant pour expérimenter une architecture
+web haute disponibilité : load balancers actif/passif, serveurs web
+et base de données avec réplication synchrone.
+
+## Architecture
+
+                        Clients
+                           │
+                           ▼
+                  VIP 192.168.56.100
+                           │
+             ┌─────────────┴─────────────┐
+             ▼                           ▼
+     ┌───────────────┐           ┌───────────────┐
+     │  lb1 (actif)  │◄─ VRRP ──►│ lb2 (passif)  │
+     │ HAProxy +     │           │ HAProxy +     │
+     │ Keepalived    │           │ Keepalived    │
+     └───────┬───────┘           └───────┬───────┘
+             └─────────────┬─────────────┘
+                           │  round-robin
+          ┌────────────────┼────────────────┐
+          ▼                ▼                ▼
+     ┌─────────┐      ┌─────────┐      ┌─────────┐
+     │  web1   │      │  web2   │      │  webN   │
+     │  nginx  │      │  nginx  │      │  nginx  │
+     └────┬────┘      └────┬────┘      └────┬────┘
+          └────────────────┼────────────────┘
+                           │
+                           ▼
+             ┌───────────────────────────┐
+             │   db1 (primaire)          │
+             │   PostgreSQL              │
+             └─────────────┬─────────────┘
+                           │ réplication synchrone
+                           ▼
+             ┌───────────────────────────┐
+             │   db2 (réplica)           │
+             │   PostgreSQL              │
+             └───────────────────────────┘
+
+## Composants
+
+| VM      | IP             | Rôle                                |
+| ------- | -------------- | ----------------------------------- |
+| VIP     | 192.168.56.100 | IP virtuelle portée par le LB actif |
+| lb1     | 192.168.56.11  | Load balancer actif                 |
+| lb2     | 192.168.56.12  | Load balancer passif                |
+| web1..N | 192.168.56.21+ | Serveurs web (N configurable)       |
+| db1     | 192.168.56.31  | Base de données primaire            |
+| db2     | 192.168.56.32  | Réplica synchrone                   |
+
+## Prérequis
+
+- [Vagrant](https://developer.hashicorp.com/vagrant/downloads)
+- [VirtualBox](https://www.virtualbox.org/)
+- Environ 4 Go de RAM disponibles pour 2 serveurs web
+
+## Utilisation
+
+bash
+vagrant up # démarre toute l'infra
+vagrant status # état des VMs
+vagrant ssh lb1 # connexion à une VM
+vagrant destroy -f # supprime tout
+
+## Avancement
+
+- [ ] Vagrantfile (définition des VMs et du réseau)
+- [ ] Serveurs web (nginx)
+- [ ] Load balancers (HAProxy)
+- [ ] Haute disponibilité des LB (Keepalived / VIP)
+- [ ] Base de données primaire (PostgreSQL)
+- [ ] Réplica avec réplication synchrone
+- [ ] Documentation des tests (failover LB, réplication)
