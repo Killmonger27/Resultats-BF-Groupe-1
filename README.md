@@ -9,7 +9,7 @@ et base de données avec réplication synchrone.
                         Clients
                            │
                            ▼
-                  VIP 192.168.56.100
+                   VIP 192.168.56.5
                            │
              ┌─────────────┴─────────────┐
              ▼                           ▼
@@ -17,6 +17,7 @@ et base de données avec réplication synchrone.
      │  lb1 (actif)  │◄─ VRRP ──►│ lb2 (passif)  │
      │ HAProxy +     │           │ HAProxy +     │
      │ Keepalived    │           │ Keepalived    │
+     │ .11           │           │ .12           │
      └───────┬───────┘           └───────┬───────┘
              └─────────────┬─────────────┘
                            │  round-robin
@@ -25,31 +26,39 @@ et base de données avec réplication synchrone.
      ┌─────────┐      ┌─────────┐      ┌─────────┐
      │  web1   │      │  web2   │      │  webN   │
      │  nginx  │      │  nginx  │      │  nginx  │
+     │  .21    │      │  .22    │      │  .2N    │
      └────┬────┘      └────┬────┘      └────┬────┘
           └────────────────┼────────────────┘
                            │
                            ▼
              ┌───────────────────────────┐
-             │   db1 (primaire)          │
+             │   db1 (primaire)  .31     │
              │   PostgreSQL              │
              └─────────────┬─────────────┘
                            │ réplication synchrone
                            ▼
              ┌───────────────────────────┐
-             │   db2 (réplica)           │
+             │   db2 (réplica)   .32     │
              │   PostgreSQL              │
              └───────────────────────────┘
 
-## Composants
+## Plan d'adressage
 
-| VM      | IP             | Rôle                                |
-| ------- | -------------- | ----------------------------------- |
-| VIP     | 192.168.56.100 | IP virtuelle portée par le LB actif |
-| lb1     | 192.168.56.11  | Load balancer actif                 |
-| lb2     | 192.168.56.12  | Load balancer passif                |
-| web1..N | 192.168.56.21+ | Serveurs web (N configurable)       |
-| db1     | 192.168.56.31  | Base de données primaire            |
-| db2     | 192.168.56.32  | Réplica synchrone                   |
+Réseau privé du lab : _192.168.56.0/24_ (réseau host-only VirtualBox).
+
+| Plage / IP            | Usage                                        |
+| --------------------- | -------------------------------------------- |
+| 192.168.56.1          | Hôte (passerelle host-only VirtualBox)       |
+| _192.168.56.5_        | _VIP_ (portée par le LB actif)               |
+| 192.168.56.11         | lb1 (actif)                                  |
+| 192.168.56.12         | lb2 (passif)                                 |
+| 192.168.56.21 à .29   | web1 à web9                                  |
+| 192.168.56.31         | db1 (primaire)                               |
+| 192.168.56.32         | db2 (réplica synchrone)                      |
+| 192.168.56.100 à .254 | Réservé au DHCP VirtualBox (ne pas utiliser) |
+
+Chaque VM a aussi une interface NAT (10.0.2.15) gérée par Vagrant pour
+l'accès SSH et Internet : elle n'intervient pas dans le plan du lab.
 
 ## Prérequis
 
