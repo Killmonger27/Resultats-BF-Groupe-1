@@ -12,11 +12,11 @@ VERSION = "202404.26.0"
 # Source unique de vérité : le Vagrantfile ET la configuration du
 # répartiteur sont engendrés à partir de cette table.
 NOEUDS = []
-NOEUDS << { nom: "bdd1", ip: "#{RESEAU}.31", mem: 768, role: "bdd" }
-NOEUDS << { nom: "bdd2", ip: "#{RESEAU}.32", mem: 768, role: "replique" }
-(1..NB_APP).each do |i|
-  NOEUDS << { nom: "app#{i}", ip: "#{RESEAU}.#{20 + i}", mem: 512, role: "app" }
-end
+#NOEUDS << { nom: "bdd1", ip: "#{RESEAU}.31", mem: 768, role: "bdd" }
+#NOEUDS << { nom: "bdd2", ip: "#{RESEAU}.32", mem: 768, role: "replique" }
+#(1..NB_APP).each do |i|
+#  NOEUDS << { nom: "app#{i}", ip: "#{RESEAU}.#{20 + i}", mem: 512, role: "app" }
+#end
 NOEUDS << { nom: "lb1", ip: "#{RESEAU}.11", mem: 512, role: "lb", etat: "MASTER" }
 NOEUDS << { nom: "lb2", ip: "#{RESEAU}.12", mem: 512, role: "lb", etat: "BACKUP" }
 
@@ -40,7 +40,7 @@ Vagrant.configure("2") do |config|
         vb.memory = n[:mem]
         vb.cpus   = 1
       end
-      # m.vm.provision "shell", path: "scripts/#{n[:role]}.sh"
+      m.vm.provision "shell", path: "scripts/#{n[:role]}.sh"
     end
   end
 end
