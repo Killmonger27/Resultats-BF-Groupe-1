@@ -68,18 +68,39 @@ l'accès SSH et Internet : elle n'intervient pas dans le plan du lab.
 
 ## Utilisation
 
-bash
+```bash
 vagrant up # démarre toute l'infra
 vagrant status # état des VMs
 vagrant ssh lb1 # connexion à une VM
 vagrant destroy -f # supprime tout
+```
+
+## Test actuel : failover des load balancers
+
+Avant d'ajouter HAProxy et PostgreSQL, le lab valide uniquement Keepalived et
+la VIP. `lb1` démarre en `MASTER` et porte `192.168.56.5`; `lb2` démarre en
+`BACKUP`.
+
+```bash
+# Vérifier que la VIP est sur lb1
+vagrant ssh lb1 -c 'ip -4 addr show | grep -F 192.168.56.5'
+vagrant ssh lb2 -c '! ip -4 addr show | grep -F 192.168.56.5'
+
+# Simuler la panne du maître
+vagrant ssh lb1 -c 'sudo systemctl stop keepalived'
+vagrant ssh lb2 -c 'ip -4 addr show | grep -F 192.168.56.5'
+
+# Rétablir lb1 et vérifier le retour de la VIP
+vagrant ssh lb1 -c 'sudo systemctl start keepalived'
+vagrant ssh lb1 -c 'ip -4 addr show | grep -F 192.168.56.5'
+```
 
 ## Avancement
 
 - [ ] Vagrantfile (définition des VMs et du réseau)
 - [ ] Serveurs web (nginx)
 - [ ] Load balancers (HAProxy)
-- [ ] Haute disponibilité des LB (Keepalived / VIP)
+- [ ] Haute disponibilité des LB (Keepalived / VIP) — test à exécuter
 - [ ] Base de données primaire (PostgreSQL)
 - [ ] Réplica avec réplication synchrone
 - [ ] Documentation des tests (failover LB, réplication)
