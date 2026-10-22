@@ -68,11 +68,54 @@ l'accès SSH et Internet : elle n'intervient pas dans le plan du lab.
 
 ## Utilisation
 
-bash
+```bash
 vagrant up # démarre toute l'infra
 vagrant status # état des VMs
 vagrant ssh lb1 # connexion à une VM
 vagrant destroy -f # supprime tout
+```
+
+## Tests : application, HAProxy et failover
+
+Après le démarrage, vérifier les services applicatifs :
+
+```bash
+vagrant ssh app1 -c 'systemctl is-active resultats-bf'
+vagrant ssh app2 -c 'systemctl is-active resultats-bf'
+vagrant ssh app1 -c 'curl -fsS http://127.0.0.1:8080/info'
+vagrant ssh app2 -c 'curl -fsS http://127.0.0.1:8080/info'
+```
+
+HAProxy doit ensuite répartir les requêtes vers les applications sur le port
+`8080`. La route `/info` ne dépend pas de PostgreSQL :
+
+```bash
+curl -fsS http://192.168.56.5/info
+for i in 1 2 3 4; do curl -fsS http://192.168.56.5/info; done
+```
+
+La route `/sante` nécessite PostgreSQL et peut retourner `503` tant que les
+nœuds de base de données ne sont pas provisionnés.
+
+## Test du failover des load balancers
+
+`lb1` démarre en `MASTER` et porte `192.168.56.5`; `lb2` démarre en
+`BACKUP`. Les tests `/sante` et `/resultat` restent dépendants des nœuds
+PostgreSQL, qui ne sont pas encore provisionnés dans cette branche.
+
+```bash
+# Vérifier que la VIP est sur lb1
+vagrant ssh lb1 -c 'ip -4 addr show | grep -F 192.168.56.5'
+vagrant ssh lb2 -c '! ip -4 addr show | grep -F 192.168.56.5'
+
+# Simuler la panne du maître
+vagrant ssh lb1 -c 'sudo systemctl stop keepalived'
+vagrant ssh lb2 -c 'ip -4 addr show | grep -F 192.168.56.5'
+
+# Rétablir lb1 et vérifier le retour de la VIP
+vagrant ssh lb1 -c 'sudo systemctl start keepalived'
+vagrant ssh lb1 -c 'ip -4 addr show | grep -F 192.168.56.5'
+```
 
 ## Application (serveurs applicatifs `app1` à `appN`)
 
@@ -156,7 +199,7 @@ python3 app/app.py                     # puis ouvrir http://localhost:8080/
 - [ ] Application HTTP (`app/`, `scripts/app.sh` : code écrit et testé en local, à valider sous Vagrant)
 - [ ] Serveurs web (nginx)
 - [ ] Load balancers (HAProxy)
-- [ ] Haute disponibilité des LB (Keepalived / VIP)
+- [ ] Haute disponibilité des LB (Keepalived / VIP) — test à exécuter
 - [ ] Base de données primaire (PostgreSQL)
 - [ ] Réplica avec réplication synchrone
 - [ ] Documentation des tests (failover LB, réplication)
