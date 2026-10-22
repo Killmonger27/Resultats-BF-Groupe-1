@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RÉSULTATS-BF</title>
+<style>
+  body { font: 16px system-ui, sans-serif; max-width: 40rem; margin: 2rem auto; padding: 0 1rem; }
+  section { border: 1px solid #8884; border-radius: 8px; padding: 1rem; margin-bottom: 1rem; }
+  h2 { margin: 0 0 .5rem; font-size: 1rem; }
+  pre { margin: .5rem 0 0; white-space: pre-wrap; }
+  .ok { color: #1a7f37; } .ko { color: #c62828; }
+</style>
+</head>
+<body>
+<h1>RÉSULTATS-BF</h1>
+
+<section>
+  <h2>Serveur qui répond (/info)</h2>
+  <button id="b-info">Actualiser</button> <pre id="r-info"></pre>
+</section>
+<section>
+  <h2>Santé (/sante)</h2>
+  <button id="b-sante">Actualiser</button> <pre id="r-sante"></pre>
+</section>
+<section>
+  <h2>Résultat (/resultat)</h2>
+  <form id="f-res"><input id="matricule" placeholder="matricule" required>
+  <button>Chercher</button></form> <pre id="r-res"></pre>
+</section>
+
+<script>
+async function appeler(chemin, sortie) {
+  const el = document.getElementById(sortie);
+  try {
+    const r = await fetch(chemin, { cache: "no-store" });
+    el.className = r.ok ? "ok" : "ko";
+    el.textContent = r.status + " " + JSON.stringify(await r.json(), null, 2);
+  } catch (e) {
+    el.className = "ko";
+    el.textContent = "injoignable : " + e.message;
+  }
+}
+document.getElementById("b-info").onclick = () => appeler("/info", "r-info");
+document.getElementById("b-sante").onclick = () => appeler("/sante", "r-sante");
+document.getElementById("f-res").onsubmit = (e) => {
+  e.preventDefault();
+  appeler("/resultat?matricule=" + encodeURIComponent(matricule.value), "r-res");
+};
+appeler("/info", "r-info"); appeler("/sante", "r-sante");
+</script>
+</body>
+</html>
