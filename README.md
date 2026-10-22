@@ -75,11 +75,33 @@ vagrant ssh lb1 # connexion à une VM
 vagrant destroy -f # supprime tout
 ```
 
-## Test actuel : failover des load balancers
+## Tests : application, HAProxy et failover
 
-Avant d'ajouter HAProxy et PostgreSQL, le lab valide uniquement Keepalived et
-la VIP. `lb1` démarre en `MASTER` et porte `192.168.56.5`; `lb2` démarre en
-`BACKUP`.
+Après le démarrage, vérifier les services applicatifs :
+
+```bash
+vagrant ssh app1 -c 'systemctl is-active resultats-bf'
+vagrant ssh app2 -c 'systemctl is-active resultats-bf'
+vagrant ssh app1 -c 'curl -fsS http://127.0.0.1:8080/info'
+vagrant ssh app2 -c 'curl -fsS http://127.0.0.1:8080/info'
+```
+
+HAProxy doit ensuite répartir les requêtes vers les applications sur le port
+`8080`. La route `/info` ne dépend pas de PostgreSQL :
+
+```bash
+curl -fsS http://192.168.56.5/info
+for i in 1 2 3 4; do curl -fsS http://192.168.56.5/info; done
+```
+
+La route `/sante` nécessite PostgreSQL et peut retourner `503` tant que les
+nœuds de base de données ne sont pas provisionnés.
+
+## Test du failover des load balancers
+
+`lb1` démarre en `MASTER` et porte `192.168.56.5`; `lb2` démarre en
+`BACKUP`. Les tests `/sante` et `/resultat` restent dépendants des nœuds
+PostgreSQL, qui ne sont pas encore provisionnés dans cette branche.
 
 ```bash
 # Vérifier que la VIP est sur lb1

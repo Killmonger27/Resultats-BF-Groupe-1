@@ -2,6 +2,16 @@
 reseau: 192.168.56.0/24
 vip: 192.168.56.5
 noeuds:
+- nom: app1
+  ip: 192.168.56.21
+  mem: 512
+  role: app
+  port: 8080
+- nom: app2
+  ip: 192.168.56.22
+  mem: 512
+  role: app
+  port: 8080
 - nom: lb1
   ip: 192.168.56.11
   mem: 512
