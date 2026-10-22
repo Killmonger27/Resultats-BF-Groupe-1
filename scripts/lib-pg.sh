@@ -16,7 +16,7 @@ charger_contexte() {
     set +a
   fi
   : "${NET_CIDR:=$(awk '/^reseau:/{print $2}' "$NOEUDS_YML")}"
-  : "${BDD1_IP:=$(awk '/^ *ip:/{ip=$NF} /^ *role:/{if($NF=="bdd")print ip}' "$NOEUDS_YML")}"
+  : "${BDD1_IP:=$(awk '$1 == "ip:" {gsub(/\r$/, "", $2); ip=$2} $1 == "role:" {gsub(/\r$/, "", $2); if ($2 == "bdd") print ip}' "$NOEUDS_YML")}"
   export NET_CIDR BDD1_IP
 }
 

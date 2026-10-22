@@ -12,8 +12,8 @@ VERSION = "202404.26.0"
 # Source unique de vérité : le Vagrantfile ET la configuration du
 # répartiteur sont engendrés à partir de cette table.
 NOEUDS = []
-#NOEUDS << { nom: "bdd1", ip: "#{RESEAU}.31", mem: 768, role: "bdd" }
-#NOEUDS << { nom: "bdd2", ip: "#{RESEAU}.32", mem: 768, role: "replique" }
+NOEUDS << { nom: "bdd1", ip: "#{RESEAU}.31", mem: 768, role: "bdd" }
+NOEUDS << { nom: "bdd2", ip: "#{RESEAU}.32", mem: 768, role: "replique" }
 (1..NB_APP).each do |i|
   NOEUDS << { nom: "app#{i}", ip: "#{RESEAU}.#{20 + i}", mem: 512, role: "app", port: 8080 }
 end

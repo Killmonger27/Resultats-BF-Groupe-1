@@ -2,6 +2,14 @@
 reseau: 192.168.56.0/24
 vip: 192.168.56.5
 noeuds:
+- nom: bdd1
+  ip: 192.168.56.31
+  mem: 768
+  role: bdd
+- nom: bdd2
+  ip: 192.168.56.32
+  mem: 768
+  role: replique
 - nom: app1
   ip: 192.168.56.21
   mem: 512
