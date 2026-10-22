@@ -40,7 +40,9 @@ Vagrant.configure("2") do |config|
         vb.memory = n[:mem]
         vb.cpus   = 1
       end
-      # m.vm.provision "shell", path: "scripts/#{n[:role]}.sh"
+      # Un script par rôle ; ignoré tant qu'il n'existe pas (app.sh, lb.sh à venir).
+      script = "scripts/#{n[:role]}.sh"
+      m.vm.provision "shell", path: script if File.exist?(File.join(__dir__, script))
     end
   end
 end
