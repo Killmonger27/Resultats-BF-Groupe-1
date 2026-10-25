@@ -19,5 +19,11 @@ frontend http_in
 
 backend web_servers
     balance roundrobin
-    option httpchk GET /
+    # R4 : sonde /sante (200 si la base répond, 503 sinon) ; un serveur est retiré
+    # après 2 échecs espacés d'1 s et réintégré après 2 succès.
+    option httpchk GET /sante
+    default-server inter 1s fall 2 rise 2
+    # /sante met jusqu'a 2 s a repondre quand bdd1 est eteinte (delai de connexion avant de
+    # passer a bdd2) : sans ce delai de reponse, la sonde (1 s) rejette des serveurs sains.
+    timeout check 4s
 ${BACKENDS}

@@ -40,9 +40,11 @@ T1=$(maintenant)
 
 echo "[2/2] Attente du retour du service ($BASE_URL/sante)"
 T2=$T1
+RETABLI=   # vide : non mesuré ; non : /sante jamais revenu en 200 ; oui : service rétabli
 if curl -s -o /dev/null --max-time 2 "$BASE_URL/info"; then
+  RETABLI=non
   for _ in $(seq 1 60); do
-    [ "$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$BASE_URL/sante")" = "200" ] && break
+    if [ "$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$BASE_URL/sante")" = "200" ]; then RETABLI=oui; break; fi
     sleep 1
   done
   T2=$(maintenant)
@@ -52,4 +54,8 @@ fi
 
 echo
 echo "Promotion de bdd2         : $(duree "$T0" "$T1") s (dont environ $(duree "$TS0" "$TS1") s de connexion vagrant ssh)"
-echo "Service de nouveau en 200 : $(duree "$T0" "$T2") s (durée totale de la bascule)"
+case "$RETABLI" in
+  oui) echo "Service de nouveau en 200 : $(duree "$T0" "$T2") s (durée totale de la bascule)" ;;
+  non) echo "ÉCHEC : $BASE_URL/sante n'est pas revenu en 200 après $(duree "$T1" "$T2") s d'attente" >&2; exit 1 ;;
+  *)   echo "Retour du service         : non mesuré" ;;
+esac
