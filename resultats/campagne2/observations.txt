@@ -1,0 +1,67 @@
+Observations de la campagne 2 (2026-10-25) : transcription des sorties de terminal qui sous-tendent le dossier
+et dont le journal brut n'est pas archivé ailleurs dans resultats/. Les noms de scripts sont ceux de l'époque
+(test-api.sh = tests/api.sh aujourd'hui). Aucune valeur n'est retouchée.
+
+[1] R6, première bascule (plateforme N=2 reconstruite, AVANT correctifs)
+    === avant : /sante {"statut": "ok"}[200] ; bdd1 recovery=f bdd2 recovery=t
+    marqueurs sur bdd1 : 100
+    ==> bdd1: Forcing shutdown of VM...      halt : 63.7 s
+    [1/2] Promotion de bdd2
+    [2/2] Attente du retour du service (http://192.168.56.5/sante)
+    Promotion de bdd2         : 1.5 s (dont environ 1.8 s de connexion vagrant ssh)
+    Service de nouveau en 200 : 63.8 s (durée totale de la bascule)
+    durée totale depuis le début du halt : 129.8 s ; bascule.sh seul : 66.1 s
+    vue du client : requetes: 2222  codes: {200: 79, 503: 2143}  erreurs: 2143
+    premiere erreur: t+2.2 s   derniere erreur: t+224.0 s   periode degradee: 221.8 s ; plus longue serie : 221.8 s
+    bdd2 recovery : f ; marqueurs retrouvés : 100 / 100 ; lignes totales : 50100 ; écriture : INSERT 0 1
+    /sante via la VIP : <html><body><h1>503 Service Unavailable</h1> No server is available to handle this request. </body></html> [503]
+    0 OK sur 7 (test-api.sh après bascule) ; sonde HAProxy : app1=DOWN app2=DOWN
+
+[2] Diagnostic de [1]
+    /sante direct, sans HAProxy : 192.168.56.21:8080 -> [200] en 1.597514s ; 192.168.56.22:8080 -> [200] en 2.053839s
+    HAProxy : app1: état=DOWN | check_status=* L7TOUT | durée de la sonde=1003 ms ; app2: état=DOWN | check_status=* L7TOUT | durée de la sonde=1004 ms
+    réglages : option httpchk GET /sante ; default-server inter 1s fall 2 rise 2 ; timeout connect 5s ; timeout client 30s ; timeout server 30s
+
+[3] Correctif "timeout check 4s" appliqué (vagrant provision lb1 lb2 : "Configuration file is valid")
+    sondes : app1=UP(* L7OK) app2=UP(* L7OK) dès le 1er essai
+    bdd1 éteinte, bdd2 primaire : /sante via la VIP -> {"statut": "ok"} [200] en 2.047455s ;
+    /resultat?matricule=POST0001 -> [200] en 2.057076s
+    scripts/bascule.sh corrigé, sur bdd2 déjà promue : Promotion 1.5 s ; "Service de nouveau en 200 : 3.6 s" ; code de sortie 0
+
+[4] Latence du service après la bascule (R6 avec correctifs, plateforme N=4, bdd1 éteinte), 6 appels de
+    curl -m 10 'http://192.168.56.5/resultat?matricule=BF000001' : [200] en 2.037981s, 1.669554s, 0.590368s, 1.896928s, 0.902436s, 0.700801s
+    sonde du fichier bascule/bascule.log (abandon à 1 s) : codes {200: 121, 503: 8, 0: 200} ; les 200 "0" sont des abandons du client, pas des erreurs.
+
+[5] File d'écoute de l'application (V3, avant correctif ; nstat -az TcpExtListenOverflows TcpExtListenDrops)
+    AVANT 3 passes : app1 150/150 ; app2 324/324 ; lb1 0/0 ; bdd1 0/0
+    passes : 194.69 req/s (p99 1189 ms) ; 195.70 req/s (p99 1191 ms) ; 196.53 req/s (p99 319 ms)
+    APRÈS : app1 207/207 ; app2 385/385 ; lb1 0/0 ; bdd1 0/0   (soit +57 et +61)
+    ss -ltn 'sport = :8080' : LISTEN 0 5 0.0.0.0:8080 ; request_queue_size par défaut de ThreadingHTTPServer = 5
+
+[6] Après le correctif request_queue_size = 128 (déployé par scripts/deploy.sh)
+    app1 : Send-Q (backlog) = 128 ; app2 : 128 ; 7 OK sur 7
+    débordements avant et après 5 passes + chauffe, puis après 8 passes d'affilée : app1 207, app2 385, lb1 0, bdd1 0 (inchangés)
+    8 passes d'affilée (req/s, p99 ms) : 163.44/2072 ; 191.46/563 ; 165.68/2145 ; 180.94/1161 ; 165.01/2157 ; 152.99/3161 ; 152.38/3153 ; 154.69/2171
+
+[7] Chute des passes de charge : 8 passes d'affilée AVANT correctif, connexions TIME_WAIT du Mac vers la VIP relevées après chaque passe (0 à chaque fois)
+    (req/s, p99 ms) : 196.00/388 ; 197.85/313 ; 195.44/319 ; 196.09/1206 ; 196.21/326 ; 132.70/5163 ; 142.09/4160 ; 134.74/4172 ; échecs 0
+    sous caffeinate -dimsu : 142.39/4180 ; 156.11/2175 ; 165.84/2172 ; 168.44/1212 ; 155.38/2175 ; 154.34/2179 ; 152.12/3164 ; 154.58/3192
+
+[8] Retransmissions TCP (nstat -az) autour de 3 passes (192.49 req/s p99 342 ; 195.33 req/s p99 314 ; 195.25 req/s p99 315)
+    AVANT : app1 TcpAttemptFails=9 TcpRetransSegs=14557 TcpExtTCPTimeouts=24 TcpExtTCPReqQFullDrop=0 TcpExtTCPSynRetrans=23
+            lb1  TcpAttemptFails=0 TcpRetransSegs=585 TcpExtTCPTimeouts=349 TcpExtTCPReqQFullDrop=0 TcpExtTCPSynRetrans=327
+            bdd1 TcpRetransSegs=0 TcpExtTCPTimeouts=0 TcpExtTCPSynRetrans=0
+    APRÈS : app1 TcpRetransSegs=15968 (autres compteurs inchangés) ; lb1 inchangé ; bdd1 inchangé
+
+[9] Goulot de V3, plateforme neuve N=4, top -bn2 -d1 (2e relevé) pendant 9000 requêtes
+    bdd1 utilisateur 36.4% système 39.3% inactif 10.3% ; app1 26.6% / 5.5% / 62.4% ; app3 25.9% / 4.6% / 63.9% ; lb1 1.8% / 4.5% / 87.4%
+
+[10] Incident de veille : V4 de la plateforme finale, sans caffeinate (journal brut écrasé par l'essai refait)
+    vagrant halt bdd1 : 4.9 s ; pendant la panne : HTTP/1.0 503, corps {"erreur": "base indisponible"}
+    vagrant up bdd1 : 852.3 s, message "the timeout ("config.vm.boot_timeout") value." ; service de nouveau en 200 : 1091.1 s après le début de 'vagrant up'
+    client : requetes: 207 codes: {200: 84, 503: 88, 0: 35} erreurs: 123 ; premiere erreur t+2.7 s ; derniere t+53.7 s ; periode 51.0 s
+    dans la VM : systemd-analyze : "Startup finished in 2.213s (kernel) + 4.950s (userspace) = 7.163s" (bdd2 : 5.369s)
+    VBox.log de bdd1 : 00:00:00.405548 'POWERING_ON' -> 'RUNNING' ; 00:00:03.447917 'RUNNING' -> 'SUSPENDING' ; 'SUSPENDING' -> 'SUSPENDED' ;
+                       00:01:19.657562 'SUSPENDED' -> 'RESUMING' ; 00:01:19.670762 'RESUMING' -> 'RUNNING'
+    pmset -g log : "Entering Sleep state" à 12:51:11, 12:51:38, 12:54:59, 12:57:51 et 12:58:18 (avec des DarkWake entre) ; réglage sleep = 1 minute
+    V4 refait sous caffeinate : voir v4/v4.log

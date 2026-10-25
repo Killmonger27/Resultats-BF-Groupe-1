@@ -1,0 +1,8 @@
+==> lb1: Running provisioner: shell...
+    lb1: Running: /var/folders/s0/6zkz29r549d352tc7b0nj_vr0000gn/T/vagrant-shell20261025-94890-o4vwku.sh
+    lb1: Configuration file is valid
+    lb1: Synchronizing state of haproxy.service with SysV service script with /usr/lib/systemd/systemd-sysv-install.
+    lb1: Executing: /usr/lib/systemd/systemd-sysv-install enable haproxy
+    lb1: Synchronizing state of keepalived.service with SysV service script with /usr/lib/systemd/systemd-sysv-install.
+    lb1: Executing: /usr/lib/systemd/systemd-sysv-install enable keepalived
+    lb1: [lb1] MASTER prêt (HAProxy, VIP 192.168.56.5, interface eth1, pair 192.168.56.12)

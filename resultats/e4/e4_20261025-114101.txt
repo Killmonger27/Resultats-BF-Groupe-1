@@ -1,0 +1,18 @@
+Contexte : 2026-10-25T11:41:01+0000, commit 925678f, cible http://192.168.56.5, 8 clients, version 2.0
+--- déploiement ---
+== app1
+   app1 à jour et UP
+== app2
+   app2 à jour et UP
+Déploiement terminé : version 2.0
+--- résultat ---
+requêtes : 5247, en erreur : 0, code de sortie du déploiement : 0
+répartition (appels, serveur, version) :
+ 755 "hote": "app1", "version": "1.0"
+1870 "hote": "app1", "version": "2.0"
+2106 "hote": "app2", "version": "1.0"
+ 516 "hote": "app2", "version": "2.0"
+codes HTTP :
+5247 200
+premières lignes en erreur :
+E4 : OK

@@ -1,0 +1,24 @@
+Campagne 2 du 2026-10-25 (ingénieur applicatif) : plateforme reconstruite à neuf (R1), puis scénarios rejoués.
+Commit de base : 925678f4950ea719b158f2efa326467f5a6d2853 (arbre de travail avec modifications non committées : app/, scripts/, conf/haproxy, tests/, README, docs)
+Machine : Apple M1 Pro, 10 coeurs, 16 Go de RAM, macOS 27.0.1 (arm64)
+VirtualBox : 7.2.22r175245   Vagrant : 2.4.9   Box : bento/ubuntu-24.04 202510.26.0 (virtualbox arm64)
+
+Reconstructions (R1, tests/r1_reconstruction.sh) : N=2 : 448 s (7 min 28 s) ; N=4 : 548 s (9 min 8 s) ; N=2 finale : 452 s (7 min 32 s). Code de sortie 0 à chaque fois.
+Ordre de la campagne : R1 N=2 -> fumée, V1, V2 x3, V6 x3, V4, E4, V3 N=2, R2, R6 (bascule, sans correctifs : échec constaté) -> corrections (timeout check HAProxy, bascule.sh) -> R1 N=4 (R3) -> V3 N=4, R6 (avec correctifs) -> R1 N=2 finale -> V2 x3, V6 x2, V4, E4, R2.
+
+Dossiers :
+  pannes/                    V2/V6 de la plateforme finale (v2_N.log, v6_N.log, v6b_N.log = retour de lb1) ; format 'horodatage_epoch code_http' (0 = pas de réponse en 1 s)
+  avant_correctifs/          pannes_plateforme1 (V2 x3, V6 x3 de la 1re reconstruction), v4_plateforme1
+  v3_n2, v3_n4               ab -q -n 2000 -c 50 sur /resultat?matricule=BF000001, 5 passes après chauffe (n2 : 1re reconstruction ; n4 : reconstruction à 4 serveurs)
+  v3_n2_apres_correctif      idem après correction de la file d'écoute (request_queue_size 5 -> 128)
+  v3_n2_caffeine             idem sous caffeinate (exclut la veille du Mac)
+  v4/                        V4 final sous caffeinate
+  bascule/                   R6 sur la plateforme N=4, avec les correctifs
+  r2/                        relevés d'idempotence (deux rejeux par rôle)
+  r1_*_final_n2.log          journaux de la reconstruction finale
+
+Incidents de mesure à connaître :
+  - Le Mac a une mise en veille à 1 minute (pmset) : pendant des essais non surveillés, il s'est mis en veille et VirtualBox a suspendu les VM (journal VBox.log : SUSPENDING/SUSPENDED).
+    Un essai de V4 sans caffeinate a ainsi duré 852 s ; il est refait sous caffeinate. Les essais finaux utilisent 'caffeinate -dimsu'.
+  - Un essai de V6 de la plateforme 1 (avant redémarrage du Mac) a donné 136 erreurs sur 81,5 s ; non reproduit (6 essais conformes ensuite), cause non établie.
+  - ab : la 5e passe d'une série chute (133 à 143 req/s, p99 3 à 5 s), y compris sous caffeinate ; cause non expliquée (file d'écoute corrigée, TIME_WAIT du client nul, veille exclue).

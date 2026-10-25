@@ -1,0 +1,10 @@
+Contexte des mesures du 2026-10-25 (ingénieur applicatif)
+Commit de base : 925678f4950ea719b158f2efa326467f5a6d2853 (arbre de travail avec modifications non committées : app/, scripts/, conf/haproxy, README, docs)
+Machine : Apple M1 Pro, 10 coeurs, 16 Go de RAM, macOS 27.0.1 (arm64)
+VirtualBox : 7.2.22r175245   Vagrant : 2.4.9   Box : bento/ubuntu-24.04 202510.26.0 (virtualbox arm64)
+Plateforme : bdd1 bdd2 app1 app2 lb1 lb2 (N=2) ; N=4 pour les passes ab_n4_*
+Cible des mesures : VIP http://192.168.56.5 depuis l'hôte (réseau privé VirtualBox)
+Outils : ab (ApacheBench 2.3) lancé sur l'hôte, donc il partage le processeur avec les VM ; sonde tests/lib/sonde.py (0,1 s) analysée par tests/lib/analyse.py
+
+Fichiers : ab_n2_*.txt / ab_n4_*.txt = sorties brutes de 'ab -q -n 2000 -c 50 http://192.168.56.5/resultat?matricule=BF000001' (passes 1 à 5, après une passe de chauffe non comptée)
+           v2.log = panne d'app1 (vagrant halt app1 à t+6 s) ; v6.log = panne de lb1 (vagrant halt lb1 à t+6 s) ; format : 'horodatage_epoch code_http' (0 = pas de réponse)

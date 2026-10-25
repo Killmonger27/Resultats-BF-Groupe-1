@@ -75,6 +75,21 @@ vagrant ssh lb1 # connexion à une VM
 vagrant destroy -f # supprime tout
 ```
 
+## Structure du dépôt
+
+```text
+Vagrantfile    définition des VM et du réseau (source unique : config/noeuds.yml)
+Makefile       commandes courantes (make help)
+.env.exemple   modèle des secrets (cp .env.exemple .env)
+app/           service HTTP (app.py, index.html, VERSION)
+conf/          modèles HAProxy et Keepalived
+config/        noeuds.yml, engendré par le Vagrantfile
+scripts/       provisionnement des VM et procédures d'exploitation (voir scripts/README.md)
+tests/         scénarios de test et de mesure (voir tests/README.md)
+resultats/     sorties brutes des mesures (voir resultats/README.md)
+docs/          dossiers par rôle ; docs/references/ (hors Git) : sujet et captures
+```
+
 ## Tests : application, HAProxy et failover
 
 Après le démarrage, vérifier les services applicatifs :
@@ -94,14 +109,21 @@ curl -fsS http://192.168.56.5/info
 for i in 1 2 3 4; do curl -fsS http://192.168.56.5/info; done
 ```
 
-La route `/sante` nécessite PostgreSQL et peut retourner `503` tant que les
-nœuds de base de données ne sont pas provisionnés.
+HAProxy sonde `GET /sante` toutes les secondes et retire un serveur après deux
+échecs (R4) : un serveur dont la base ne répond pas ne reçoit plus de trafic.
+Depuis l'hôte, le répartiteur est joignable par la VIP `192.168.56.5` (réseau
+privé) : aucun port n'est redirigé vers l'hôte (R8).
+
+La route `/sante` nécessite PostgreSQL : elle renvoie `503` tant qu'aucune base
+en lecture-écriture n'est joignable (voir `docs/README-partie-donnees.md`). Dans
+ce cas, tous les serveurs étant retirés, c'est HAProxy qui répond lui-même `503`
+au client.
 
 ## Test du failover des load balancers
 
 `lb1` démarre en `MASTER` et porte `192.168.56.5`; `lb2` démarre en
-`BACKUP`. Les tests `/sante` et `/resultat` restent dépendants des nœuds
-PostgreSQL, qui ne sont pas encore provisionnés dans cette branche.
+`BACKUP`. Les tests `/sante` et `/resultat` nécessitent que les nœuds
+PostgreSQL soient démarrés (`vagrant up bdd1 bdd2`).
 
 ```bash
 # Vérifier que la VIP est sur lb1
@@ -126,7 +148,7 @@ dans PostgreSQL et écoute sur `0.0.0.0:8080`.
 | Route | Réponse |
 | ----- | ------- |
 | `GET /` | page de démonstration (boutons pour appeler les routes ci-dessous) |
-| `GET /info` | `200` et le nom d'hôte du serveur : `{"hote": "app1"}` |
+| `GET /info` | `200` et le nom d'hôte du serveur et la version déployée : `{"hote": "app1", "version": "1.0"}` |
 | `GET /sante` | `200` si un `SELECT 1` réussit, `503` si la base est injoignable |
 | `GET /resultat?matricule=XXX` | `200` et la ligne en JSON ; `404` matricule inconnu ; `400` matricule absent ou invalide ; `503` base indisponible |
 
@@ -137,19 +159,19 @@ sont lues dans `config/noeuds.yml`.
 
 ### Configuration
 
-Aucun mot de passe n'est versionné. Avant `vagrant up`, créer à la racine du
-dépôt un fichier `.env` (ignoré par Git) :
+Aucun mot de passe n'est versionné. Avant `vagrant up`, copier le modèle
+versionné `.env.exemple` en `.env` (ignoré par Git), puis choisir les mots de
+passe :
 
 ```bash
-cat > .env <<'EOF'
-DB_NAME=resultats_bf
-DB_USER=app
-DB_PASSWORD=<choisir un mot de passe>
-EOF
+cp .env.exemple .env
 ```
 
-Ces valeurs doivent être les mêmes que celles créées côté PostgreSQL. Variables
-reconnues (toutes facultatives sauf `DB_PASSWORD`) :
+Le fichier ne contient que des lignes `CLE=valeur`, sans espace, ni `$`, ni
+guillemets, ni accent grave (il est lu par le shell). `DB_NAME`, `DB_USER` et
+`DB_PASSWORD` sont ceux que `scripts/bdd.sh` crée côté PostgreSQL ;
+`REPL_PASSWORD` ne sert qu'à la réplication. Variables reconnues par
+l'application (toutes facultatives sauf `DB_PASSWORD`) :
 
 | Variable | Défaut | Rôle |
 | -------- | ------ | ---- |
@@ -174,7 +196,7 @@ réécrit tous ses fichiers : on peut le rejouer sans risque avec
 
 ```bash
 vagrant ssh app1 -c 'systemctl is-active resultats-bf'          # active
-vagrant ssh app1 -c 'curl -s localhost:8080/info'               # {"hote": "app1"}
+vagrant ssh app1 -c 'curl -s localhost:8080/info'               # {"hote": "app1", "version": "1.0"}
 curl -s http://192.168.56.21:8080/sante                         # 200 si la base répond
 curl -s 'http://192.168.56.21:8080/resultat?matricule=<un matricule>'
 vagrant ssh app1 -c 'journalctl -u resultats-bf -n 20'          # journal du service
@@ -182,6 +204,36 @@ vagrant ssh app1 -c 'journalctl -u resultats-bf -n 20'          # journal du ser
 
 Remplacer l'adresse par celle du répartiteur une fois HAProxy en place. La page
 `http://<adresse>/` permet de faire ces appels depuis un navigateur.
+
+### Vérification de l'API et mise à jour sans coupure (extension E4)
+
+`tests/api.sh` vérifie les codes et les formats de chaque route
+(7 contrôles, `OK` ou `KO`).
+
+`scripts/deploy.sh` met à jour les serveurs applicatifs un par un : chaque
+serveur est retiré du répartiteur (`drain`, via le socket d'administration de
+HAProxy), mis à jour (`scripts/maj-app.sh` copie `app/` et redémarre le
+service), puis remis en service dès que HAProxy le voit `UP`. Les noms des
+serveurs et des répartiteurs viennent de `config/noeuds.yml`. Prérequis : au
+moins 2 serveurs applicatifs, `socat` sur les répartiteurs (installé par
+`scripts/lb.sh`) et une base saine.
+
+```bash
+./tests/api.sh                 # contrat de l'API
+./scripts/deploy.sh            # mise à jour serveur par serveur
+./tests/e4_deploiement.sh 2.0  # démonstration : passe en 2.0 sous charge et compte les erreurs
+```
+
+La version affichée par `/info` vient de `app/VERSION`. `e4_deploiement.sh` écrit la
+sortie brute dans `resultats/e4/`.
+
+### Scénarios de test et de mesure
+
+Chaque scénario du sujet (R1, R2, R6, V2 à V6, E4) tient en une commande dans
+`tests/`, avec le résultat attendu pour chacun : voir `tests/README.md`. Les
+commandes courantes existent aussi avec `make` (`make help`). Les sorties brutes
+des mesures sont rangées dans `resultats/`. Pour vérifier une branche avant de la
+fusionner, suivre `docs/guide-verification.md`.
 
 ### Lancer l'application sans Vagrant (développement)
 

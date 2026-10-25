@@ -1,0 +1,6 @@
+b0b63c34d1bf4022b7faec30ff266e33  /etc/resultats-bf/app.env
+c043c8de9a665271bf2033c96a11bc89  /etc/resultats-bf/noeuds.yml
+2542b79651fab56d0ebfff75a0fdf7be  /opt/resultats-bf/VERSION
+63c45383a04ec59944d48a14096eb329  /opt/resultats-bf/app.py
+bba0c47b9f06c695a470cceca289fddf  /opt/resultats-bf/index.html
+6e27ede6b629140212e1297df0040051  /etc/systemd/system/resultats-bf.service

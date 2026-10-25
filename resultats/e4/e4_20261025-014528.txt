@@ -1,0 +1,20 @@
+Contexte : 2026-10-25T01:45:28+0000, commit 925678f, cible http://192.168.56.5, 8 clients, version 2.0
+--- déploiement ---
+== app1
+curl: (7) Failed to connect to 127.0.0.1 port 8080 after 0 ms: Couldn't connect to server
+   app1 à jour et UP
+== app2
+curl: (7) Failed to connect to 127.0.0.1 port 8080 after 0 ms: Couldn't connect to server
+   app2 à jour et UP
+Déploiement terminé : version 2.0
+--- résultat ---
+requêtes : 5521, en erreur : 0, code de sortie du déploiement : 0
+répartition (appels, serveur, version) :
+ 754 "hote": "app1", "version": "1.0"
+2021 "hote": "app1", "version": "2.0"
+2171 "hote": "app2", "version": "1.0"
+ 575 "hote": "app2", "version": "2.0"
+codes HTTP :
+5521 200
+premières lignes en erreur :
+E4 : OK

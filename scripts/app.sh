@@ -7,7 +7,7 @@ DEST=/opt/resultats-bf
 CONF=/etc/resultats-bf
 RACINE=/vagrant
 
-# Secrets : lus dans /vagrant/.env (non versionné, voir config/env.example).
+# Secrets : lus dans /vagrant/.env (non versionné, voir .env.exemple).
 if [ -f "$RACINE/.env" ]; then
   set -a; . "$RACINE/.env"; set +a
 else
@@ -21,6 +21,7 @@ apt-get install -y -qq python3-psycopg2 python3-yaml
 install -d "$DEST" "$CONF"
 install -m 0644 "$RACINE/app/app.py" "$DEST/app.py"
 install -m 0644 "$RACINE/app/index.html" "$DEST/index.html"
+install -m 0644 "$RACINE/app/VERSION" "$DEST/VERSION"
 install -m 0644 "$RACINE/config/noeuds.yml" "$CONF/noeuds.yml"
 
 cat > "$CONF/app.env" <<ENV
