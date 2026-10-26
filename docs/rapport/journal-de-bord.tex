@@ -1,0 +1,100 @@
+% Journal de bord du projet RÉSULTATS-BF (livrable L3, 1 à 2 pages).
+% Compilation : tectonic journal-de-bord.tex   (ou xelatex journal-de-bord.tex)
+\documentclass[a4paper,10pt]{article}
+
+\usepackage{fontspec}
+\usepackage[french]{babel}
+\usepackage[a4paper,top=2.2cm,bottom=2cm,left=2.1cm,right=2.1cm]{geometry}
+\usepackage{array}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{fancyhdr}
+\usepackage[colorlinks=true,urlcolor=blue!45!black,
+            pdftitle={Projet RÉSULTATS-BF : journal de bord},
+            pdfauthor={OUARMA Landry, WAONGO Osiris, SAWADOGO Ahmad, KOURA Ulrich}]{hyperref}
+
+\setlength{\parskip}{0.4em}
+\setlength{\parindent}{0pt}
+\setlength{\emergencystretch}{2em}
+\renewcommand{\arraystretch}{1.12}
+\setlength{\headheight}{14pt}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small Projet RÉSULTATS-BF --- Journal de bord}
+\fancyhead[R]{\small Groupe 1}
+\fancyfoot[C]{\small\thepage}
+\renewcommand{\headrulewidth}{0.3pt}
+
+\lstset{basicstyle=\ttfamily\footnotesize,
+  literate={é}{{\'e}}1 {è}{{\`e}}1 {ê}{{\^e}}1 {à}{{\`a}}1 {â}{{\^a}}1 {î}{{\^i}}1
+           {ô}{{\^o}}1 {û}{{\^u}}1 {ù}{{\`u}}1 {ç}{{\c c}}1 {É}{{\'E}}1}
+\lstMakeShortInline[basicstyle=\ttfamily\footnotesize,breaklines=true]|
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+
+\begin{document}
+
+{\centering
+{\Large\bfseries Projet RÉSULTATS-BF --- Journal de bord\par}
+\vspace{0.2em}
+Groupe 1 : KOURA L.\ Stéphane Ulrich, OUARMA Landry Ezeïkiel, SAWADOGO Ahmad Moussa, WAONGO Osiris Nouredine\par
+Dépôt : \url{https://github.com/Killmonger27/Resultats-BF-Groupe-1}\par}
+
+\section*{1. Répartition des rôles et façon de travailler}
+
+\small
+\begin{tabular}{@{}L{2.9cm}L{3.6cm}L{8.9cm}@{}}
+\toprule
+\textbf{Membre} & \textbf{Rôle (sujet, §9)} & \textbf{Périmètre traité}\\
+\midrule
+OUARMA Landry & Architecte réseau et répartition & Vagrantfile, plan d'adressage, HAProxy, Keepalived, extension E1\\
+WAONGO Osiris & Ingénieur applicatif & service HTTP, page de démonstration, service systemd\\
+SAWADOGO Ahmad & Ingénieur données & PostgreSQL, 50\,000 lignes, réplication, bascule, secrets\\
+KOURA Ulrich & Ingénieur essais et observabilité & scénarios V1 à V6, campagne de mesures, E4, corrections, rapport\\
+\bottomrule
+\end{tabular}
+\normalsize
+
+Chacun a travaillé sur sa branche (|feature/keepalived+vip|, |feat/api-dev|, |feature/Haproxy|, |feat/donnees|, |feat/tests|), fusionnée dans |main| par pull request. Les corrections nées des tests ont touché des fichiers d'autres domaines (HAProxy, installation de |socat|, script de bascule) ; elles sont isolées dans un commit séparé pour que leurs responsables les relisent (détail dans le rapport, section 10).
+
+\section*{2. Décisions prises et pourquoi}
+
+\small
+\begin{longtable}{@{}L{4.9cm}L{11.1cm}@{}}
+\toprule
+\textbf{Décision} & \textbf{Pourquoi}\\
+\midrule\endhead
+Une seule table de machines dans le Vagrantfile, qui engendre |config/noeuds.yml| et la configuration de HAProxy & Passer de 2 à 4 serveurs applicatifs se fait avec |NB_APP=4|, sans éditer aucun fichier (R3). Aucune adresse n'est écrite en dur.\\
+Sonde HAProxy sur |/sante| plutôt que |/info| & |/sante| interroge la base : un serveur dont la base ne répond pas est retiré du tourniquet (R4).\\
+Service en Python standard, sans état, une connexion à la base par requête & Ajouter ou retirer un serveur ne perd aucune session ; le code reste sous la limite de 100 lignes du sujet (95 lignes).\\
+|target_session_attrs=read-write| avec |bdd1| puis |bdd2| & Après la promotion de |bdd2|, l'application retrouve seule le primaire : la bascule ne demande aucun changement dans l'application.\\
+Réplication asynchrone avec slot, bascule par script (pas d'outil de basculement automatique) & L'écriture sur |bdd1| n'attend pas la réplique et la panne de |bdd2| ne le bloque pas. Coût accepté et documenté : les dernières transactions peuvent être perdues si |bdd1| tombe brutalement.\\
+HAProxy démarre aussi sur le répartiteur passif (|ip_nonlocal_bind|) & La VIP passe sur lb2 sans attendre le démarrage de HAProxy.\\
+Deux extensions : E1 et E4 & E1 supprime le point de défaillance unique du répartiteur ; E4 met l'application à jour sans interrompre le service (retrait du serveur par le socket d'administration de HAProxy). E2 et E3 ne sont pas réalisées.\\
+Mesurer au lieu d'affirmer : sonde à 0,1 s, scripts dans |tests/|, sorties brutes dans |resultats/| & Chaque chiffre du rapport se retrouve dans le dépôt, y compris les essais non conformes. C'est ainsi que trois défauts ont été trouvés (section suivante).\\
+\bottomrule
+\end{longtable}
+\normalsize
+
+\newpage
+\section*{3. Difficultés rencontrées et comment elles ont été levées}
+
+\small
+\begin{longtable}{@{}L{4.9cm}L{11.1cm}@{}}
+\toprule
+\textbf{Difficulté} & \textbf{Comment elle a été levée}\\
+\midrule\endhead
+Boîte introuvable sur Mac Apple Silicon : la version épinglée |202404.26.0| n'existe que pour amd64 & Utilisation locale de |202510.26.0| (amd64 et arm64), sans modifier le dépôt ; les mesures ont été faites avec cette version.\\
+Vagrant annonçait un « port 8080 déjà utilisé » et une « collision de port 22 » à tort & Le Ruby embarqué de Vagrant voyait tous les ports comme ouverts. Aucune redirection de port n'est déclarée (R8) : le service s'atteint par la VIP, sur le réseau privé ; le message sur le port 22 est sans gravité.\\
+Provisionnement cassé par un |.env| mal formé (ligne parasite, caractère spécial) & Le fichier est lu par le shell : il ne contient que des lignes |CLE=valeur|, sans espace ni caractère spécial, règle écrite dans |.env.exemple|.\\
+Sous charge, des connexions refusées étaient retransmises 1 à 3 s plus tard & Le compteur du noyau |TcpExtListenOverflows| a montré une file d'écoute de 5 (valeur par défaut) : portée à 128, déployée sans coupure avec |deploy.sh|.\\
+Après la promotion de |bdd2|, le service ne revenait pas, et |bascule.sh| annonçait pourtant un succès & Sonde trop courte (1 s pour une réponse de 1,6 à 2 s) : |timeout check 4s| ajouté. Le script distingue désormais rétabli, non mesuré et échec, et sort en erreur. Service rétabli en 3,7 s.\\
+VM suspendues pendant les essais (une panne de base mesurée à 852 s au lieu de 22 s) & La mise en veille du portable : les essais finaux tournent sous |caffeinate| et les essais invalidés sont refaits.\\
+E4 en échec sur le poste d'un autre membre (« Socket HAProxy inaccessible sur lb2 ») & Ce message signale que le socket d'administration manque, par exemple sur un répartiteur construit avant l'ajout de |socat|. |deploy.sh| le vérifie avant tout changement (rien n'est modifié) et indique |vagrant provision lb1 lb2|.\\
+Le débit n'augmente pas avec le nombre de serveurs (180 à 196 req/s) & Mesure du goulot : |bdd1|, à un seul processeur, est saturée alors que les serveurs applicatifs sont inactifs. Documenté comme limite ; la chute de la cinquième passe de charge reste sans cause établie.\\
+\bottomrule
+\end{longtable}
+\normalsize
+
+\end{document}

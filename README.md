@@ -1,8 +1,12 @@
-# Vagrant Lab : infra haute disponibilité
+# RÉSULTATS-BF : plateforme résiliente et scalable avec Vagrant
 
-Lab multi-VM reproductible avec Vagrant pour expérimenter une architecture
-web haute disponibilité : load balancers actif/passif, serveurs web
-et base de données avec réplication synchrone.
+Plateforme de consultation de résultats d'examen par matricule, entièrement
+reconstructible avec `vagrant up` : deux répartiteurs HAProxy + Keepalived
+(adresse IP virtuelle), N serveurs applicatifs Python sans état, et PostgreSQL
+en primaire avec une réplique en flux (réplication asynchrone). Projet de
+groupe du Master 1, module Virtualisation et Cloud Computing. Le dossier
+d'architecture est dans `docs/rapport/` ; les mesures brutes sont dans
+`resultats/`.
 
 ## Architecture
 
@@ -24,22 +28,22 @@ et base de données avec réplication synchrone.
           ┌────────────────┼────────────────┐
           ▼                ▼                ▼
      ┌─────────┐      ┌─────────┐      ┌─────────┐
-     │  web1   │      │  web2   │      │  webN   │
-     │  nginx  │      │  nginx  │      │  nginx  │
+     │  app1   │      │  app2   │      │  appN   │
+     │ Python  │      │ Python  │      │ Python  │
      │  .21    │      │  .22    │      │  .2N    │
      └────┬────┘      └────┬────┘      └────┬────┘
           └────────────────┼────────────────┘
-                           │
+                           │  bdd1 d'abord, bdd2 en secours
                            ▼
              ┌───────────────────────────┐
-             │   db1 (primaire)  .31     │
-             │   PostgreSQL              │
+             │   bdd1 (primaire)  .31    │
+             │   PostgreSQL 16           │
              └─────────────┬─────────────┘
-                           │ réplication synchrone
+                           │ réplication en flux, asynchrone
                            ▼
              ┌───────────────────────────┐
-             │   db2 (réplica)   .32     │
-             │   PostgreSQL              │
+             │   bdd2 (réplique)  .32    │
+             │   PostgreSQL 16           │
              └───────────────────────────┘
 
 ## Plan d'adressage
@@ -52,9 +56,9 @@ Réseau privé du lab : _192.168.56.0/24_ (réseau host-only VirtualBox).
 | _192.168.56.5_        | _VIP_ (portée par le LB actif)               |
 | 192.168.56.11         | lb1 (actif)                                  |
 | 192.168.56.12         | lb2 (passif)                                 |
-| 192.168.56.21 à .29   | web1 à web9                                  |
-| 192.168.56.31         | db1 (primaire)                               |
-| 192.168.56.32         | db2 (réplica synchrone)                      |
+| 192.168.56.21 à .29   | app1 à app9 (serveurs applicatifs)           |
+| 192.168.56.31         | bdd1 (primaire)                              |
+| 192.168.56.32         | bdd2 (réplique asynchrone, promouvable)      |
 | 192.168.56.100 à .254 | Réservé au DHCP VirtualBox (ne pas utiliser) |
 
 Chaque VM a aussi une interface NAT (10.0.2.15) gérée par Vagrant pour
@@ -62,17 +66,32 @@ l'accès SSH et Internet : elle n'intervient pas dans le plan du lab.
 
 ## Prérequis
 
-- [Vagrant](https://developer.hashicorp.com/vagrant/downloads)
-- [VirtualBox](https://www.virtualbox.org/)
-- Environ 4 Go de RAM disponibles pour 2 serveurs web
+- [Vagrant](https://developer.hashicorp.com/vagrant/downloads) 2.4 et [VirtualBox](https://www.virtualbox.org/) 7
+- Environ 4 Go de RAM disponibles : le socle (lb1, app1, app2, bdd1, bdd2) occupe 3 072 Mo, 3 584 Mo avec lb2
+- Pour les tests : `curl`, `python3`, `ab` (ApacheBench) et `make`
+- Boîte `bento/ubuntu-24.04`, version épinglée dans le `Vagrantfile` (`VERSION`) : `202404.26.0` n'existe en
+  VirtualBox que pour amd64. Sur un Mac Apple Silicon (arm64), utiliser `202510.26.0` (amd64 et arm64)
 
 ## Utilisation
 
 ```bash
-vagrant up # démarre toute l'infra
-vagrant status # état des VMs
-vagrant ssh lb1 # connexion à une VM
-vagrant destroy -f # supprime tout
+cp .env.exemple .env       # puis choisir DB_PASSWORD et REPL_PASSWORD (voir « Configuration »)
+vagrant up                 # construit les 6 machines sans autre commande (environ 8 minutes)
+curl http://192.168.56.5/info                              # {"hote": "app1", "version": "1.0"}
+curl 'http://192.168.56.5/resultat?matricule=BF000001'     # un résultat, en JSON
+make api                   # 7 contrôles du contrat de l'API : 7 lignes OK
+
+vagrant status             # état des VMs
+vagrant ssh lb1            # connexion à une VM
+vagrant destroy -f         # supprime tout
+```
+
+Autres procédures (détail dans `docs/rapport/` et `scripts/README.md`) :
+
+```bash
+NB_APP=4 vagrant up app3 app4 && NB_APP=4 vagrant provision lb1 lb2   # ajouter des serveurs applicatifs
+vagrant halt bdd1 && ./scripts/bascule.sh                             # bdd1 en panne : promouvoir bdd2
+./scripts/deploy.sh                                                   # mettre à jour l'application sans coupure
 ```
 
 ## Structure du dépôt
@@ -87,7 +106,8 @@ config/        noeuds.yml, engendré par le Vagrantfile
 scripts/       provisionnement des VM et procédures d'exploitation (voir scripts/README.md)
 tests/         scénarios de test et de mesure (voir tests/README.md)
 resultats/     sorties brutes des mesures (voir resultats/README.md)
-docs/          dossiers par rôle ; docs/references/ (hors Git) : sujet et captures
+docs/          dossiers par rôle, guide de vérification, rapport/ (dossier d'architecture, journal de bord) ;
+               docs/references/ (hors Git) : sujet et captures
 ```
 
 ## Tests : application, HAProxy et failover
@@ -247,11 +267,13 @@ python3 app/app.py                     # puis ouvrir http://localhost:8080/
 
 ## Avancement
 
-- [ ] Vagrantfile (définition des VMs et du réseau)
-- [ ] Application HTTP (`app/`, `scripts/app.sh` : code écrit et testé en local, à valider sous Vagrant)
-- [ ] Serveurs web (nginx)
-- [ ] Load balancers (HAProxy)
-- [ ] Haute disponibilité des LB (Keepalived / VIP) — test à exécuter
-- [ ] Base de données primaire (PostgreSQL)
-- [ ] Réplica avec réplication synchrone
-- [ ] Documentation des tests (failover LB, réplication)
+- [x] Vagrantfile (définition des VMs et du réseau, table unique `NOEUDS`, `NB_APP`)
+- [x] Serveurs applicatifs Python sans état (`app/`, `scripts/app.sh`)
+- [x] Répartiteur HAProxy, sonde `GET /sante`, configuration engendrée depuis `config/noeuds.yml`
+- [x] Haute disponibilité des répartiteurs (Keepalived, VIP, extension E1)
+- [x] Base de données primaire PostgreSQL et jeu de 50 000 lignes
+- [x] Réplique en flux (asynchrone) et procédure de bascule (`scripts/bascule.sh`)
+- [x] Mise à jour sans coupure (extension E4)
+- [x] Scénarios de test et mesures V1 à V6, R1 à R8 (`tests/`, `resultats/`)
+- [x] Dossier d'architecture (`docs/rapport/`) et journal de bord (`docs/rapport/journal-de-bord.pdf`)
+- [ ] Extensions E2 (observabilité) et E3 (cache) : non réalisées
