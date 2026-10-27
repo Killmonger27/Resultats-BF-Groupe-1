@@ -14,7 +14,7 @@ Pour la personne qui fusionne : ce guide permet de vérifier la branche sans con
 
 **Travail de l'ingénieur applicatif :** `app/app.py` (503 sans primaire en écriture, erreurs en JSON, file d'écoute 128, version dans `/info`), `scripts/app.sh`, E4 (`scripts/deploy.sh`, `scripts/maj-app.sh`, `tests/e4_deploiement.sh`), les scénarios `tests/`, les mesures `resultats/`, le `Makefile`, les README d'index et `docs/dossier-partie-applicative.md`.
 
-Le **Vagrantfile n'est pas modifié** par la branche (voir §2 pour la boîte).
+Le **Vagrantfile** ne change que d'une ligne : la version de la boîte, `202510.26.0` (voir §2).
 
 ## 2. Préparation (5 min)
 
@@ -27,7 +27,7 @@ cut -d= -f1 .env              # attendu : DB_NAME DB_USER DB_PASSWORD REPL_PASSW
 make help                     # liste les commandes de ce guide
 ```
 
-- **Boîte Vagrant.** Le Vagrantfile épingle `bento/ubuntu-24.04` `202404.26.0`, qui n'existe en VirtualBox que pour **amd64**. Sur un Mac Apple Silicon, remplacer localement la ligne `VERSION` par `"202510.26.0"` et **ne pas committer** ce changement.
+- **Boîte Vagrant.** Le Vagrantfile épingle `bento/ubuntu-24.04` `202510.26.0` (amd64 et arm64, la même pour tous les postes). L'ancienne `202404.26.0` n'existait en VirtualBox que pour amd64 : si elle réapparaît, la remplacer.
 - Les messages `Fixed port collision for 22 => 2222` de Vagrant sont sans gravité.
 - **Une seule commande Vagrant à la fois**, et empêcher la veille de l'ordinateur : sur macOS les cibles `make` utilisent `caffeinate` ; ailleurs, désactiver la veille. Une veille suspend les VM et fausse les mesures.
 
@@ -35,14 +35,14 @@ make help                     # liste les commandes de ce guide
 
 ```bash
 git diff origin/main..HEAD --stat | tail -1
-git diff origin/main..HEAD --name-only | grep -x Vagrantfile || echo "Vagrantfile absent : OK"
+git diff origin/main..HEAD -- Vagrantfile | grep -E '^[+-][^+-]'   # attendu : seulement la ligne VERSION
 for f in scripts/*.sh tests/*.sh; do bash -n "$f" || echo "ERREUR $f"; done; echo "syntaxe bash vérifiée"
 python3 -c "import ast; [ast.parse(open(f).read()) for f in ('app/app.py','tests/lib/sonde.py','tests/lib/analyse.py')]; print('python OK')"
 wc -l < app/app.py            # attendu : moins de 100 (limite du sujet)
 git log -p origin/main..HEAD | grep -i -E "password[a-z_]*=[^<\$ ]" | grep -v changeme || echo "aucun mot de passe en clair : OK"
 ```
 
-Attendu : « Vagrantfile absent : OK », aucune erreur de syntaxe, `app.py` sous 100 lignes, aucun mot de passe. **Bloquant** en cas d'écart.
+Attendu : seule la ligne `VERSION` du Vagrantfile diffère, aucune erreur de syntaxe, `app.py` sous 100 lignes, aucun mot de passe. **Bloquant** en cas d'écart.
 
 ## 4. Parcours rapide (environ 25 min) : les étapes 5 à 8
 
@@ -140,7 +140,7 @@ Attendu : `bdd2` promue en moins de 3 s ; `Service de nouveau en 200 : N s` (mes
 ## 15. Remise en état et critères de fusion
 
 ```bash
-git status --short            # attendu : rien à committer (sauf éventuellement resultats/e4/e4_*.txt et le Vagrantfile local)
+git status --short            # attendu : rien à committer (sauf éventuellement resultats/e4/e4_*.txt)
 make destroy                  # facultatif : libère la mémoire
 ```
 
@@ -150,7 +150,7 @@ make destroy                  # facultatif : libère la mémoire
 
 | Symptôme | Cause probable | Que faire |
 |---|---|---|
-| `vagrant up` échoue : boîte introuvable pour l'architecture | boîte `202404.26.0` sur un Mac arm64 | voir §2 (boîte), ne pas committer |
+| `vagrant up` échoue : boîte introuvable pour l'architecture | ancienne boîte `202404.26.0` (amd64 seulement) | vérifier que le Vagrantfile épingle `202510.26.0` (§2) |
 | `DB_PASSWORD manquant` ou `REPL_PASSWORD manquant` | `.env` incomplet | refaire `cp .env.exemple .env` et renseigner les 4 clés |
 | `command not found` pendant le provisionnement | caractère spécial dans `.env` (`EOF`, `$`, espace) | corriger la ligne fautive |
 | `/sante` reste en 503 après une bascule | sonde trop courte (`timeout check` absent) | vérifier que le template HAProxy de la branche est bien déployé (`vagrant provision lb1 lb2`) |
