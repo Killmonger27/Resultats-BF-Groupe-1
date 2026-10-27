@@ -4,7 +4,7 @@ set -euo pipefail
 . /vagrant/scripts/lib.sh
 
 maj_apt
-installer keepalived haproxy gettext-base
+installer keepalived haproxy gettext-base socat
 
 # HAProxy doit pouvoir démarrer sur le LB passif avant qu'il ne possède la VIP.
 sysctl -w net.ipv4.ip_nonlocal_bind=1 >/dev/null

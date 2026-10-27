@@ -1,0 +1,5 @@
+d06c676d38e7d09acb423da7042a35df  /etc/postgresql/16/main/conf.d/resultats-bf.conf
+a408f8b1c8b5275bc8cf6c2eb0c2e4d7  /etc/postgresql/16/main/pg_hba.conf
+blocs balises dans pg_hba.conf: 1
+recovery,lignes: f|50000
+service: Sun 2026-10-25 01:01:36 UTC

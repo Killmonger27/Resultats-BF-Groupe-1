@@ -1,0 +1,3 @@
+b715dde249a61cc35d7094df40d403a9  /etc/haproxy/haproxy.cfg
+f72e9444a2954fc104841936044f30af  /etc/keepalived/keepalived.conf
+f26eee312cd2aed698cc60e2d9b8ca5c  /etc/sysctl.d/99-haproxy-vip.conf

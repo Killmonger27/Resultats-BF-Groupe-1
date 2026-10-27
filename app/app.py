@@ -16,6 +16,8 @@ NOEUDS = os.environ.get("NOEUDS_FILE", "/vagrant/config/noeuds.yml")
 TABLE = os.environ.get("DB_TABLE", "resultats")
 CLE = os.environ.get("DB_CLE", "matricule")
 PAGE = Path(__file__).with_name("index.html")
+VERSION_FILE = Path(__file__).with_name("VERSION")
+VERSION = VERSION_FILE.read_text().strip() if VERSION_FILE.exists() else "inconnue"
 MATRICULE = re.compile(r"^[A-Za-z0-9-]{1,20}$")
 
 
@@ -27,7 +29,10 @@ def connexion():
     return psycopg2.connect(
         host=",".join(hotes), port=os.environ.get("DB_PORT", "5432"),
         dbname=os.environ["DB_NAME"], user=os.environ["DB_USER"],
-        password=os.environ.get("DB_PASSWORD", ""), connect_timeout=2)
+        password=os.environ.get("DB_PASSWORD", ""), connect_timeout=2,
+        # read-write : bdd2 (replique) accepte les lectures, mais /sante doit rester
+        # en 503 tant qu'elle n'est pas promue (scenario V4).
+        target_session_attrs="read-write")
 
 
 def interroger(requete, params=()):
@@ -56,7 +61,7 @@ class Handler(BaseHTTPRequestHandler):
             if url.path == "/":
                 self.repondre(200, PAGE.read_bytes(), "text/html; charset=utf-8")
             elif url.path == "/info":
-                self.repondre(200, {"hote": socket.gethostname()})
+                self.repondre(200, {"hote": socket.gethostname(), "version": VERSION})
             elif url.path == "/sante":
                 interroger("SELECT 1")
                 self.repondre(200, {"statut": "ok"})
@@ -68,6 +73,8 @@ class Handler(BaseHTTPRequestHandler):
             self.repondre(400, {"erreur": "matricule invalide"})
         except (psycopg2.Error, OSError, KeyError):
             self.repondre(503, {"erreur": "base indisponible"})
+        except Exception:
+            self.repondre(500, {"erreur": "erreur interne"})
 
     def resultat(self, matricule):
         if not MATRICULE.match(matricule):
@@ -83,4 +90,6 @@ class Handler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
+    # File d'ecoute : 5 par defaut, elle debordait sous charge (V3) et les clients retransmettaient leur SYN.
+    ThreadingHTTPServer.request_queue_size = 128
     ThreadingHTTPServer(("0.0.0.0", PORT), Handler).serve_forever()

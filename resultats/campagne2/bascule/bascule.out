@@ -1,0 +1,5 @@
+[1/2] Promotion de bdd2
+[2/2] Attente du retour du service (http://192.168.56.5/sante)
+
+Promotion de bdd2         : 1.6 s (dont environ 1.5 s de connexion vagrant ssh)
+Service de nouveau en 200 : 3.7 s (durée totale de la bascule)

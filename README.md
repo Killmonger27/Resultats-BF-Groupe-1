@@ -1,8 +1,12 @@
-# Vagrant Lab : infra haute disponibilité
+# RÉSULTATS-BF : plateforme résiliente et scalable avec Vagrant
 
-Lab multi-VM reproductible avec Vagrant pour expérimenter une architecture
-web haute disponibilité : load balancers actif/passif, serveurs web
-et base de données avec réplication synchrone.
+Plateforme de consultation de résultats d'examen par matricule, entièrement
+reconstructible avec `vagrant up` : deux répartiteurs HAProxy + Keepalived
+(adresse IP virtuelle), N serveurs applicatifs Python sans état, et PostgreSQL
+en primaire avec une réplique en flux (réplication asynchrone). Projet de
+groupe du Master 1, module Virtualisation et Cloud Computing. Le dossier
+d'architecture est dans `docs/rapport/` ; les mesures brutes sont dans
+`resultats/`.
 
 ## Architecture
 
@@ -24,22 +28,22 @@ et base de données avec réplication synchrone.
           ┌────────────────┼────────────────┐
           ▼                ▼                ▼
      ┌─────────┐      ┌─────────┐      ┌─────────┐
-     │  web1   │      │  web2   │      │  webN   │
-     │  nginx  │      │  nginx  │      │  nginx  │
+     │  app1   │      │  app2   │      │  appN   │
+     │ Python  │      │ Python  │      │ Python  │
      │  .21    │      │  .22    │      │  .2N    │
      └────┬────┘      └────┬────┘      └────┬────┘
           └────────────────┼────────────────┘
-                           │
+                           │  bdd1 d'abord, bdd2 en secours
                            ▼
              ┌───────────────────────────┐
-             │   db1 (primaire)  .31     │
-             │   PostgreSQL              │
+             │   bdd1 (primaire)  .31    │
+             │   PostgreSQL 16           │
              └─────────────┬─────────────┘
-                           │ réplication synchrone
+                           │ réplication en flux, asynchrone
                            ▼
              ┌───────────────────────────┐
-             │   db2 (réplica)   .32     │
-             │   PostgreSQL              │
+             │   bdd2 (réplique)  .32    │
+             │   PostgreSQL 16           │
              └───────────────────────────┘
 
 ## Plan d'adressage
@@ -52,9 +56,9 @@ Réseau privé du lab : _192.168.56.0/24_ (réseau host-only VirtualBox).
 | _192.168.56.5_        | _VIP_ (portée par le LB actif)               |
 | 192.168.56.11         | lb1 (actif)                                  |
 | 192.168.56.12         | lb2 (passif)                                 |
-| 192.168.56.21 à .29   | web1 à web9                                  |
-| 192.168.56.31         | db1 (primaire)                               |
-| 192.168.56.32         | db2 (réplica synchrone)                      |
+| 192.168.56.21 à .29   | app1 à app9 (serveurs applicatifs)           |
+| 192.168.56.31         | bdd1 (primaire)                              |
+| 192.168.56.32         | bdd2 (réplique asynchrone, promouvable)      |
 | 192.168.56.100 à .254 | Réservé au DHCP VirtualBox (ne pas utiliser) |
 
 Chaque VM a aussi une interface NAT (10.0.2.15) gérée par Vagrant pour
@@ -62,17 +66,48 @@ l'accès SSH et Internet : elle n'intervient pas dans le plan du lab.
 
 ## Prérequis
 
-- [Vagrant](https://developer.hashicorp.com/vagrant/downloads)
-- [VirtualBox](https://www.virtualbox.org/)
-- Environ 4 Go de RAM disponibles pour 2 serveurs web
+- [Vagrant](https://developer.hashicorp.com/vagrant/downloads) 2.4 et [VirtualBox](https://www.virtualbox.org/) 7
+- Environ 4 Go de RAM disponibles : le socle (lb1, app1, app2, bdd1, bdd2) occupe 3 072 Mo, 3 584 Mo avec lb2
+- Pour les tests : `curl`, `python3`, `ab` (ApacheBench) et `make`
+- Boîte `bento/ubuntu-24.04`, version épinglée dans le `Vagrantfile` (`VERSION`) : `202404.26.0` n'existe en
+  VirtualBox que pour amd64. Sur un Mac Apple Silicon (arm64), utiliser `202510.26.0` (amd64 et arm64)
 
 ## Utilisation
 
 ```bash
-vagrant up # démarre toute l'infra
-vagrant status # état des VMs
-vagrant ssh lb1 # connexion à une VM
-vagrant destroy -f # supprime tout
+cp .env.exemple .env       # puis choisir DB_PASSWORD et REPL_PASSWORD (voir « Configuration »)
+vagrant up                 # construit les 6 machines sans autre commande (environ 8 minutes)
+curl http://192.168.56.5/info                              # {"hote": "app1", "version": "1.0"}
+curl 'http://192.168.56.5/resultat?matricule=BF000001'     # un résultat, en JSON
+make api                   # 7 contrôles du contrat de l'API : 7 lignes OK
+
+vagrant status             # état des VMs
+vagrant ssh lb1            # connexion à une VM
+vagrant destroy -f         # supprime tout
+```
+
+Autres procédures (détail dans `docs/rapport/` et `scripts/README.md`) :
+
+```bash
+NB_APP=4 vagrant up app3 app4 && NB_APP=4 vagrant provision lb1 lb2   # ajouter des serveurs applicatifs
+vagrant halt bdd1 && ./scripts/bascule.sh                             # bdd1 en panne : promouvoir bdd2
+./scripts/deploy.sh                                                   # mettre à jour l'application sans coupure
+```
+
+## Structure du dépôt
+
+```text
+Vagrantfile    définition des VM et du réseau (source unique : config/noeuds.yml)
+Makefile       commandes courantes (make help)
+.env.exemple   modèle des secrets (cp .env.exemple .env)
+app/           service HTTP (app.py, index.html, VERSION)
+conf/          modèles HAProxy et Keepalived
+config/        noeuds.yml, engendré par le Vagrantfile
+scripts/       provisionnement des VM et procédures d'exploitation (voir scripts/README.md)
+tests/         scénarios de test et de mesure (voir tests/README.md)
+resultats/     sorties brutes des mesures (voir resultats/README.md)
+docs/          dossiers par rôle, guide de vérification, rapport/ (dossier d'architecture, journal de bord) ;
+               docs/references/ (hors Git) : sujet et captures
 ```
 
 ## Tests : application, HAProxy et failover
@@ -94,14 +129,21 @@ curl -fsS http://192.168.56.5/info
 for i in 1 2 3 4; do curl -fsS http://192.168.56.5/info; done
 ```
 
-La route `/sante` nécessite PostgreSQL et peut retourner `503` tant que les
-nœuds de base de données ne sont pas provisionnés.
+HAProxy sonde `GET /sante` toutes les secondes et retire un serveur après deux
+échecs (R4) : un serveur dont la base ne répond pas ne reçoit plus de trafic.
+Depuis l'hôte, le répartiteur est joignable par la VIP `192.168.56.5` (réseau
+privé) : aucun port n'est redirigé vers l'hôte (R8).
+
+La route `/sante` nécessite PostgreSQL : elle renvoie `503` tant qu'aucune base
+en lecture-écriture n'est joignable (voir `docs/README-partie-donnees.md`). Dans
+ce cas, tous les serveurs étant retirés, c'est HAProxy qui répond lui-même `503`
+au client.
 
 ## Test du failover des load balancers
 
 `lb1` démarre en `MASTER` et porte `192.168.56.5`; `lb2` démarre en
-`BACKUP`. Les tests `/sante` et `/resultat` restent dépendants des nœuds
-PostgreSQL, qui ne sont pas encore provisionnés dans cette branche.
+`BACKUP`. Les tests `/sante` et `/resultat` nécessitent que les nœuds
+PostgreSQL soient démarrés (`vagrant up bdd1 bdd2`).
 
 ```bash
 # Vérifier que la VIP est sur lb1
@@ -126,7 +168,7 @@ dans PostgreSQL et écoute sur `0.0.0.0:8080`.
 | Route | Réponse |
 | ----- | ------- |
 | `GET /` | page de démonstration (boutons pour appeler les routes ci-dessous) |
-| `GET /info` | `200` et le nom d'hôte du serveur : `{"hote": "app1"}` |
+| `GET /info` | `200` et le nom d'hôte du serveur et la version déployée : `{"hote": "app1", "version": "1.0"}` |
 | `GET /sante` | `200` si un `SELECT 1` réussit, `503` si la base est injoignable |
 | `GET /resultat?matricule=XXX` | `200` et la ligne en JSON ; `404` matricule inconnu ; `400` matricule absent ou invalide ; `503` base indisponible |
 
@@ -137,19 +179,19 @@ sont lues dans `config/noeuds.yml`.
 
 ### Configuration
 
-Aucun mot de passe n'est versionné. Avant `vagrant up`, créer à la racine du
-dépôt un fichier `.env` (ignoré par Git) :
+Aucun mot de passe n'est versionné. Avant `vagrant up`, copier le modèle
+versionné `.env.exemple` en `.env` (ignoré par Git), puis choisir les mots de
+passe :
 
 ```bash
-cat > .env <<'EOF'
-DB_NAME=resultats_bf
-DB_USER=app
-DB_PASSWORD=<choisir un mot de passe>
-EOF
+cp .env.exemple .env
 ```
 
-Ces valeurs doivent être les mêmes que celles créées côté PostgreSQL. Variables
-reconnues (toutes facultatives sauf `DB_PASSWORD`) :
+Le fichier ne contient que des lignes `CLE=valeur`, sans espace, ni `$`, ni
+guillemets, ni accent grave (il est lu par le shell). `DB_NAME`, `DB_USER` et
+`DB_PASSWORD` sont ceux que `scripts/bdd.sh` crée côté PostgreSQL ;
+`REPL_PASSWORD` ne sert qu'à la réplication. Variables reconnues par
+l'application (toutes facultatives sauf `DB_PASSWORD`) :
 
 | Variable | Défaut | Rôle |
 | -------- | ------ | ---- |
@@ -174,7 +216,7 @@ réécrit tous ses fichiers : on peut le rejouer sans risque avec
 
 ```bash
 vagrant ssh app1 -c 'systemctl is-active resultats-bf'          # active
-vagrant ssh app1 -c 'curl -s localhost:8080/info'               # {"hote": "app1"}
+vagrant ssh app1 -c 'curl -s localhost:8080/info'               # {"hote": "app1", "version": "1.0"}
 curl -s http://192.168.56.21:8080/sante                         # 200 si la base répond
 curl -s 'http://192.168.56.21:8080/resultat?matricule=<un matricule>'
 vagrant ssh app1 -c 'journalctl -u resultats-bf -n 20'          # journal du service
@@ -182,6 +224,36 @@ vagrant ssh app1 -c 'journalctl -u resultats-bf -n 20'          # journal du ser
 
 Remplacer l'adresse par celle du répartiteur une fois HAProxy en place. La page
 `http://<adresse>/` permet de faire ces appels depuis un navigateur.
+
+### Vérification de l'API et mise à jour sans coupure (extension E4)
+
+`tests/api.sh` vérifie les codes et les formats de chaque route
+(7 contrôles, `OK` ou `KO`).
+
+`scripts/deploy.sh` met à jour les serveurs applicatifs un par un : chaque
+serveur est retiré du répartiteur (`drain`, via le socket d'administration de
+HAProxy), mis à jour (`scripts/maj-app.sh` copie `app/` et redémarre le
+service), puis remis en service dès que HAProxy le voit `UP`. Les noms des
+serveurs et des répartiteurs viennent de `config/noeuds.yml`. Prérequis : au
+moins 2 serveurs applicatifs, `socat` sur les répartiteurs (installé par
+`scripts/lb.sh`) et une base saine.
+
+```bash
+./tests/api.sh                 # contrat de l'API
+./scripts/deploy.sh            # mise à jour serveur par serveur
+./tests/e4_deploiement.sh 2.0  # démonstration : passe en 2.0 sous charge et compte les erreurs
+```
+
+La version affichée par `/info` vient de `app/VERSION`. `e4_deploiement.sh` écrit la
+sortie brute dans `resultats/e4/`.
+
+### Scénarios de test et de mesure
+
+Chaque scénario du sujet (R1, R2, R6, V2 à V6, E4) tient en une commande dans
+`tests/`, avec le résultat attendu pour chacun : voir `tests/README.md`. Les
+commandes courantes existent aussi avec `make` (`make help`). Les sorties brutes
+des mesures sont rangées dans `resultats/`. Pour vérifier une branche avant de la
+fusionner, suivre `docs/guide-verification.md`.
 
 ### Lancer l'application sans Vagrant (développement)
 
@@ -195,11 +267,13 @@ python3 app/app.py                     # puis ouvrir http://localhost:8080/
 
 ## Avancement
 
-- [ ] Vagrantfile (définition des VMs et du réseau)
-- [ ] Application HTTP (`app/`, `scripts/app.sh` : code écrit et testé en local, à valider sous Vagrant)
-- [ ] Serveurs web (nginx)
-- [ ] Load balancers (HAProxy)
-- [ ] Haute disponibilité des LB (Keepalived / VIP) — test à exécuter
-- [ ] Base de données primaire (PostgreSQL)
-- [ ] Réplica avec réplication synchrone
-- [ ] Documentation des tests (failover LB, réplication)
+- [x] Vagrantfile (définition des VMs et du réseau, table unique `NOEUDS`, `NB_APP`)
+- [x] Serveurs applicatifs Python sans état (`app/`, `scripts/app.sh`)
+- [x] Répartiteur HAProxy, sonde `GET /sante`, configuration engendrée depuis `config/noeuds.yml`
+- [x] Haute disponibilité des répartiteurs (Keepalived, VIP, extension E1)
+- [x] Base de données primaire PostgreSQL et jeu de 50 000 lignes
+- [x] Réplique en flux (asynchrone) et procédure de bascule (`scripts/bascule.sh`)
+- [x] Mise à jour sans coupure (extension E4)
+- [x] Scénarios de test et mesures V1 à V6, R1 à R8 (`tests/`, `resultats/`)
+- [x] Dossier d'architecture (`docs/rapport/`) et journal de bord (`docs/rapport/journal-de-bord.pdf`)
+- [ ] Extensions E2 (observabilité) et E3 (cache) : non réalisées

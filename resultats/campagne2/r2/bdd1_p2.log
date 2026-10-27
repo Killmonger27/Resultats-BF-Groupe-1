@@ -1,0 +1,8 @@
+==> bdd1: Running provisioner: shell...
+    bdd1: Running: /var/folders/s0/6zkz29r549d352tc7b0nj_vr0000gn/T/vagrant-shell20261025-95392-928p3i.sh
+    bdd1:  pg_create_physical_replication_slot
+    bdd1: -------------------------------------
+    bdd1: (0 rows)
+    bdd1: 
+    bdd1: NOTICE:  relation "resultats" already exists, skipping
+    bdd1: bdd1 prête : 50000 lignes.

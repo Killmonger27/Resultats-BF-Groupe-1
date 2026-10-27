@@ -7,7 +7,7 @@ NB_APP  = (ENV['NB_APP'] || 2).to_i      # nombre de serveurs applicatifs
 RESEAU  = "192.168.#{55 + GROUPE}"
 VIP     = "#{RESEAU}.5"                  # IP virtuelle portée par le LB actif
 BOITE   = "bento/ubuntu-24.04"
-VERSION = "202404.26.0"
+VERSION = "202510.26.0"                  # virtualbox amd64 ET arm64 (202404.26.0 : amd64 seulement)
 
 # Source unique de vérité : le Vagrantfile ET la configuration du
 # répartiteur sont engendrés à partir de cette table.

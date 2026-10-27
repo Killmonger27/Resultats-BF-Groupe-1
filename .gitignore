@@ -1,3 +1,38 @@
+# --- Vagrant et VirtualBox : machines, boîtes et disques (se reconstruisent avec vagrant up)
 .vagrant/
-*.log
+*.box
+*.vdi
+*.vmdk
+*.vhd
+*.vbox
+*.vbox-prev
+VirtualBox VMs/
+
+# --- Secrets : jamais versionnés (le modèle versionné est .env.exemple)
+.env
 *.env
+
+# --- Journaux ; exception : les sorties brutes des mesures sont versionnées dans resultats/
+*.log
+!resultats/**/*.log
+
+# --- Python
+__pycache__/
+*.py[cod]
+
+# --- Éditeurs et système
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*~
+
+# --- Outils locaux
+.claude/
+
+# --- Documents de référence et captures d'écran brutes : à garder en local
+# (une capture utile au dossier se renomme et se range dans docs/)
+docs/references/
+/*.pdf
+Screenshot*.png
+Capture*cran*.png

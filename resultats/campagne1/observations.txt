@@ -1,0 +1,41 @@
+Observations relevées à l'écran le 2026-10-25 (transcription des sorties de terminal, non produites par un script archivé).
+Plateforme : VIP 192.168.56.5, N=2, sonde HAProxy sur /sante (sauf mention contraire).
+
+[1] /sante avec bdd1 éteinte et bdd2 en réplique, HAProxy sondant encore GET / (avant le changement de sonde)
+    curl -s -m 6 -w ' [%{http_code}] %{time_total}s' http://192.168.56.5/sante
+    -> {"erreur": "base indisponible"} [503] 2.062489s
+    curl direct sur app1:8080/sante -> {"erreur": "base indisponible"} [503]
+
+[2] V4 : vagrant halt bdd1 (sonde HAProxy sur /sante). L'arrêt de la VM a duré 65 s ("Forcing shutdown of VM").
+    t+0s à t+8s, /sante -> [503] en 2 à 6 ms, corps :
+    <html><body><h1>503 Service Unavailable</h1> No server is available to handle this request. </body></html>
+    /resultat?matricule=BF000001 -> HTTP/1.1 503 Service Unavailable, content-length: 107, même corps
+    Sonde HAProxy : app1: DOWN, app2: DOWN
+
+[3] Retour de la base : vagrant up bdd1 -> 23 s ; /sante à 200 dès la fin de la commande ;
+    sonde HAProxy : app1: UP, app2: UP ; bdd2 : pg_is_in_recovery = t, 50000 lignes ; test-api.sh : 7 OK.
+
+[4] V1 (N=2) : 20 appels à /info -> 10 {"hote": "app1", ...} et 10 {"hote": "app2", ...}
+    V1 (N=4, NB_APP=4) : 5 app1, 5 app2, 5 app3, 5 app4.
+
+[5] Réintégration d'app1 après vagrant halt app1 : vagrant up app1 = 23 s ; HAProxy voit app1 et app2 UP 25 s après le début ; répartition 10/10.
+
+[6] R3 : NB_APP=4 vagrant up app3 app4, puis vagrant provision lb1 lb2 (sans édition manuelle) :
+    haproxy.cfg contient 4 lignes "server appN 192.168.56.2N:8080 check" ; sonde : app1=UP app2=UP app3=UP app4=UP.
+
+[7] Goulot de V3 (N=4, 9000 requêtes, top -bn2 -d1, 2e relevé) :
+    bdd1 utilisateur 41.1% système 40.2% inactif 0.0% ; app1 utilisateur 26.1% système 6.3% inactif 60.4% ;
+    app3 utilisateur 25.2% système 5.4% inactif 61.3% ; lb1 utilisateur 1.8% système 7.1% inactif 79.6%
+
+[8] R7 : DB_PASSWORD -> 0 commit, 0 fichier suivi ; REPL_PASSWORD -> 0 commit, 0 fichier suivi ; .env ignoré (règle *.env).
+[9] R8 : aucune redirection de port dans le Vagrantfile ; redirections VirtualBox = seulement SSH (127.0.0.1:22xx -> 22).
+
+[10] Répétitions de V2 et V6 faites avant le redémarrage du Mac (plateforme d'origine).
+     JOURNAUX BRUTS PERDUS : le dossier temporaire où ils étaient écrits a été effacé au démarrage de macOS ;
+     seuls les résultats de l'analyse (tests/lib/analyse.py) sont transcrits ici.
+     V2 essai 1 : 851 requêtes, codes {200: 849, 0: 2}, erreurs de t+2.8 s à t+3.9 s (période dégradée 1.1 s), stable dès t+4.9 s
+     V2 essai 2 : 851 requêtes, codes {200: 849, 0: 2}, erreurs de t+2.5 s à t+3.6 s (1.1 s), stable dès t+4.6 s
+     V2 essai 3 : 860 requêtes, codes {200: 859, 0: 1}, 1 erreur à t+2.2 s (0.0 s), stable dès t+3.2 s
+     V6 essai 1 : 861 requêtes, codes {200: 860, 0: 1}, 1 erreur à t+2.1 s, stable dès t+3.1 s ; retour de lb1 : 724 requêtes, 0 erreur
+     V6 essai 2 : 860 requêtes, codes {200: 859, 0: 1}, 1 erreur à t+2.6 s, stable dès t+3.6 s ; retour de lb1 : 725 requêtes, 0 erreur
+     V6 essai 3 : 510 requêtes, codes {200: 374, 0: 136}, 136 erreurs de t+2.5 s à t+84.0 s (81.5 s dont 50.2 s sans interruption) ; retour de lb1 non mesuré (test arrêté)
