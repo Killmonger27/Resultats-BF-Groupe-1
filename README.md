@@ -69,8 +69,8 @@ l'accès SSH et Internet : elle n'intervient pas dans le plan du lab.
 - [Vagrant](https://developer.hashicorp.com/vagrant/downloads) 2.4 et [VirtualBox](https://www.virtualbox.org/) 7
 - Environ 4 Go de RAM disponibles : le socle (lb1, app1, app2, bdd1, bdd2) occupe 3 072 Mo, 3 584 Mo avec lb2
 - Pour les tests : `curl`, `python3`, `ab` (ApacheBench) et `make`
-- Boîte `bento/ubuntu-24.04`, version épinglée dans le `Vagrantfile` (`VERSION`) : `202404.26.0` n'existe en
-  VirtualBox que pour amd64. Sur un Mac Apple Silicon (arm64), utiliser `202510.26.0` (amd64 et arm64)
+- Boîte `bento/ubuntu-24.04`, version `202510.26.0` épinglée dans le `Vagrantfile` (amd64 et arm64 ; l'ancienne
+  `202404.26.0` n'existait en VirtualBox que pour amd64)
 
 ## Utilisation
 

@@ -200,7 +200,7 @@ La plateforme entière se détruit et se reconstruit avec |vagrant destroy -f| p
   \item \textbf{Connexion lente.} Chaque script installe ses paquets en une seule commande |apt-get|, pour ne rien télécharger deux fois.
 \end{itemize}
 
-\textbf{Version de la boîte.} Le dépôt épingle |bento/ubuntu-24.04| en version |202404.26.0|, qui n'existe en VirtualBox que pour les processeurs amd64. Nos mesures, faites sur un Mac Apple Silicon, ont utilisé la version |202510.26.0| (amd64 et arm64), sans modifier le dépôt.
+\textbf{Version de la boîte.} La version d'abord épinglée, |202404.26.0|, n'existe en VirtualBox que pour les processeurs amd64 : elle est introuvable sur un Mac Apple Silicon. Le dépôt épingle désormais |bento/ubuntu-24.04| en version |202510.26.0| (amd64 et arm64), la même pour tout le groupe comme l'impose le sujet ; toutes nos mesures ont été faites avec elle.
 
 % ================================================================ 4. Exigences
 \section{Exigences R1 à R8}
@@ -477,7 +477,7 @@ Le passage à l'échelle est la principale limite : ajouter des serveurs applica
   \item Mesurer d'abord la base : lui donner un second processeur ou tester un pool de connexions, avant d'ajouter des serveurs applicatifs.
   \item Basculer automatiquement la base, avec un outil comme Patroni si le budget mémoire de 3~Go le permet, et passer en réplication synchrone pour ne perdre aucune écriture.
   \item Lire sur la réplique et écrire sur le primaire, pour garder le service en lecture pendant une panne de |bdd1|.
-  \item Lancer chaque campagne plusieurs fois sur la machine de référence, sans mise en veille, avec la même version de boîte pour tout le groupe.
+  \item Lancer chaque campagne plusieurs fois sur la machine de référence, sans mise en veille.
   \item Mesurer une panne brutale de |bdd1| (arrêt immédiat de la machine) pour chiffrer la perte de données.
 \end{itemize}
 
@@ -498,7 +498,7 @@ KOURA Ulrich & Ingénieur essais et observabilité & scénarios V1 à V6 et exig
 \bottomrule
 \end{longtable}}
 
-\textbf{Notre branche.} Elle ajoute deux commits (143 fichiers) : le premier corrige trois fichiers d'autres rôles après les tests de pannes (modèle HAProxy, installation de |socat|, script de bascule), le second contient les scripts de test, E4, les mesures, les corrections du service et la documentation. Un guide de vérification (|docs/guide-verification.md|) permet à la personne qui fusionne de rejouer les tests avant de fusionner.
+\textbf{Notre branche.} |feat/tests| a été fusionnée dans |main| par la pull request n\textsuperscript{o}~5 de OUARMA Landry, le 27 octobre. Elle ajoute trois commits : le premier corrige des fichiers d'autres rôles après les tests de pannes (modèle HAProxy, installation de |socat|, script de bascule), le deuxième contient les scripts de test, E4, les mesures, les corrections du service et la documentation, le troisième le rapport, le journal de bord, le README à jour et la version de la boîte. Un guide de vérification (|docs/guide-verification.md|) permet de rejouer les tests.
 
 \textbf{Rotation des commits.} Le sujet demande à chaque membre au moins un commit significatif hors de son domaine. L'historique permet de vérifier les travaux suivants, faits dans le domaine d'un collègue ou sur un livrable commun :
 
@@ -508,6 +508,7 @@ KOURA Ulrich & Ingénieur essais et observabilité & scénarios V1 à V6 et exig
 \textbf{Auteur} & \textbf{Domaine touché} & \textbf{Modification}\\
 \midrule\endhead
 KOURA Ulrich & architecte (OUARMA Landry) & modèle HAProxy : sonde sur |/sante|, réglages |inter|, |fall|, |rise| et |timeout check 4s| ; |lb.sh| installe |socat|\\
+KOURA Ulrich & architecte (OUARMA Landry) & Vagrantfile : version de la boîte portée à |202510.26.0|, disponible en amd64 et en arm64, pour tous les postes\\
 KOURA Ulrich & données (SAWADOGO Ahmad) & |bascule.sh| distingue service rétabli, non mesuré et échec, et sort en erreur (code 1) si |/sante| ne revient pas\\
 KOURA Ulrich & applicatif (WAONGO Osiris) & |app.py| et |app.sh| : 503 sans primaire en écriture, erreurs en JSON, file d'écoute à 128, version dans |/info| ; extension E4 (|deploy.sh|, |maj-app.sh|)\\
 SAWADOGO Ahmad & architecte (OUARMA Landry) & Vagrantfile : exécute le script de chaque rôle (|scripts/<rôle>.sh|) dès qu'il existe\\
